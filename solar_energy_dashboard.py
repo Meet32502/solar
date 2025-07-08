@@ -6,9 +6,9 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import plotly.figure_factory as ff
 
-# Set page config
+# Configure page
 st.set_page_config(
-    page_title="Solar Energy Production Analysis",
+    page_title="Solar Panel Energy Analytics",
     page_icon="☀️",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -17,458 +17,413 @@ st.set_page_config(
 # Custom CSS for professional styling
 st.markdown("""
 <style>
-.main-header {
-    font-size: 3rem;
-    font-weight: bold;
-    color: #FF6B35;
-    text-align: center;
-    margin-bottom: 2rem;
-    text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
-}
-
-.sub-header {
-    font-size: 1.5rem;
-    font-weight: 600;
-    color: #2E86AB;
-    margin-bottom: 1rem;
-    border-bottom: 2px solid #FF6B35;
-    padding-bottom: 0.5rem;
-}
-
-.metric-card {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    padding: 1rem;
-    border-radius: 10px;
-    color: white;
-    margin: 0.5rem 0;
-}
-
-.info-box {
-    background-color: #f8f9fa;
-    border-left: 4px solid #FF6B35;
-    padding: 1rem;
-    margin: 1rem 0;
-    border-radius: 5px;
-}
-
-.stMetric {
-    background-color: #ffffff;
-    border: 1px solid #e0e0e0;
-    border-radius: 8px;
-    padding: 1rem;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
-
-.stMetric > div {
-    color: #000000 !important;
-}
-
-.stMetric > div > div {
-    color: #000000 !important;
-}
-
-.stMetric label {
-    color: #000000 !important;
-}
-
-.stMetric [data-testid="metric-container"] {
-    color: #000000 !important;
-}
-
-.stMetric [data-testid="metric-container"] > div {
-    color: #000000 !important;
-}
-
+    .main-header {
+        font-size: 3rem;
+        color: #FF6B35;
+        text-align: center;
+        margin-bottom: 2rem;
+        font-weight: bold;
+    }
+    .sub-header {
+        font-size: 1.5rem;
+        color: #2E86AB;
+        margin-bottom: 1rem;
+    }
+    .metric-container {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 1rem;
+        border-radius: 10px;
+        color: white;
+        text-align: center;
+        margin: 0.5rem 0;
+    }
+    .info-box {
+        background: #f8f9fa;
+        padding: 1rem;
+        border-radius: 8px;
+        border-left: 4px solid #FF6B35;
+        margin: 1rem 0;
+    }
+    .stSelectbox > div > div > div {
+        background-color: #f0f2f6;
+    }
 </style>
 """, unsafe_allow_html=True)
 
-# Solar Energy Data Generation Code
+# Feature ranges for all seasons
+feature_ranges = {
+    'summer': {
+        'irradiance': (600, 1000),
+        'humidity': (10, 50),
+        'wind_speed': (0, 5),
+        'ambient_temperature': (30, 45),
+        'tilt_angle': (10, 40),
+    },
+    'monsoon': {
+        'irradiance': (100, 600),
+        'humidity': (70, 100),
+        'wind_speed': (2, 8),
+        'ambient_temperature': (20, 35),
+        'tilt_angle': (10, 40),
+    },
+    'winter': {
+        'irradiance': (300, 700),
+        'humidity': (30, 70),
+        'wind_speed': (1, 6),
+        'ambient_temperature': (5, 20),
+        'tilt_angle': (10, 40),
+    }
+}
+
+# Months with exact days for each season
+season_months_days = {
+    'summer': {
+        'March': 31,
+        'April': 30,
+        'May': 31,
+        'June': 30
+    },
+    'monsoon': {
+        'July': 31,
+        'August': 31,
+        'September': 30,
+        'October': 31
+    },
+    'winter': {
+        'November': 30,
+        'December': 31,
+        'January': 31,
+        'February': 28
+    }
+}
+
+def calc_kwh_summer(irradiance, humidity, wind_speed, ambient_temp, tilt_angle):
+    return (0.25 * irradiance
+            - 0.05 * humidity
+            + 0.02 * wind_speed
+            + 0.1 * ambient_temp
+            - 0.03 * abs(tilt_angle - 30))
+
+def calc_kwh_monsoon(irradiance, humidity, wind_speed, ambient_temp, tilt_angle):
+    return (0.15 * irradiance
+            - 0.1 * humidity
+            + 0.01 * wind_speed
+            + 0.05 * ambient_temp
+            - 0.04 * abs(tilt_angle - 30))
+
+def calc_kwh_winter(irradiance, humidity, wind_speed, ambient_temp, tilt_angle):
+    return (0.18 * irradiance
+            - 0.03 * humidity
+            + 0.015 * wind_speed
+            + 0.08 * ambient_temp
+            - 0.02 * abs(tilt_angle - 30))
+
 @st.cache_data
-def load_solar_data():
-    # Feature ranges for all seasons
-    feature_ranges = {
-        'summer': {
-            'irradiance': (600, 1000),
-            'humidity': (10, 50),
-            'wind_speed': (0, 5),
-            'ambient_temperature': (30, 45),
-            'tilt_angle': (10, 40),
-        },
-        'winter': {
-            'irradiance': (300, 700),
-            'humidity': (30, 70),
-            'wind_speed': (1, 6),
-            'ambient_temperature': (5, 20),
-            'tilt_angle': (10, 40),
-        },
-        'monsoon': {
-            'irradiance': (100, 600),
-            'humidity': (70, 100),
-            'wind_speed': (2, 8),
-            'ambient_temperature': (20, 35),
-            'tilt_angle': (10, 40),
-        }
-    }
-
-    # All 12 months with exact days (365 days total)
-    months_days = {
-        'January': 31, 'February': 28, 'March': 31, 'April': 30,
-        'May': 31, 'June': 30, 'July': 31, 'August': 31,
-        'September': 30, 'October': 31, 'November': 30, 'December': 31
-    }
-
-    # Month to season mapping
-    month_to_season = {
-        'January': 'winter', 'February': 'winter', 'March': 'summer', 'April': 'summer',
-        'May': 'summer', 'June': 'summer', 'July': 'monsoon', 'August': 'monsoon',
-        'September': 'monsoon', 'October': 'monsoon', 'November': 'winter', 'December': 'winter'
-    }
-
-    # kWh calculation functions
-    def calc_kwh_summer(irradiance, humidity, wind_speed, ambient_temp, tilt_angle):
-        return (0.25 * irradiance - 0.05 * humidity + 0.02 * wind_speed + 0.1 * ambient_temp - 0.03 * abs(tilt_angle - 30))
-
-    def calc_kwh_winter(irradiance, humidity, wind_speed, ambient_temp, tilt_angle):
-        return (0.18 * irradiance - 0.03 * humidity + 0.015 * wind_speed + 0.08 * ambient_temp - 0.02 * abs(tilt_angle - 30))
-
-    def calc_kwh_monsoon(irradiance, humidity, wind_speed, ambient_temp, tilt_angle):
-        return (0.15 * irradiance - 0.1 * humidity + 0.01 * wind_speed + 0.05 * ambient_temp - 0.04 * abs(tilt_angle - 30))
-
-    def get_kwh_calculator(season):
-        if season == 'summer':
-            return calc_kwh_summer
-        elif season == 'winter':
-            return calc_kwh_winter
-        elif season == 'monsoon':
-            return calc_kwh_monsoon
-
-    # Generate complete 365-day dataset
-    def generate_complete_year_data():
-        data = []
-        day_counter = 1
-        for month, days in months_days.items():
-            season = month_to_season[month]
-            calc_kwh_func = get_kwh_calculator(season)
-            
-            for day in range(days):
-                irr = np.random.uniform(*feature_ranges[season]['irradiance'])
-                hum = np.random.uniform(*feature_ranges[season]['humidity'])
-                wind = np.random.uniform(*feature_ranges[season]['wind_speed'])
-                temp = np.random.uniform(*feature_ranges[season]['ambient_temperature'])
-                tilt = np.random.uniform(*feature_ranges[season]['tilt_angle'])
-
-                kwh = calc_kwh_func(irr, hum, wind, temp, tilt)
-
-                data.append({
-                    'day': day_counter,
-                    'irradiance': round(irr, 2),
-                    'humidity': round(hum, 2),
-                    'wind_speed': round(wind, 2),
-                    'ambient_temperature': round(temp, 2),
-                    'tilt_angle': round(tilt, 2),
-                    'kwh': round(kwh, 2),
-                    'season': season,
-                    'month': month
-                })
-                day_counter += 1
-        return pd.DataFrame(data)
-
-    return generate_complete_year_data()
-
-# Load data
-df = load_solar_data()
-
-# Main Dashboard
-st.markdown('<h1 class="main-header">☀️ Solar Energy Production Analysis Dashboard</h1>', unsafe_allow_html=True)
-
-# Sidebar
-st.sidebar.markdown("## 🎛️ Dashboard Controls")
-st.sidebar.markdown("---")
-
-# Filters
-selected_seasons = st.sidebar.multiselect(
-    "🌦️ Select Seasons",
-    options=df['season'].unique(),
-    default=df['season'].unique()
-)
-
-selected_months = st.sidebar.multiselect(
-    "📅 Select Months",
-    options=df['month'].unique(),
-    default=df['month'].unique()
-)
-
-# Filter data
-filtered_df = df[
-    (df['season'].isin(selected_seasons)) & 
-    (df['month'].isin(selected_months))
-]
-
-# Key Metrics Row
-st.markdown('<h2 class="sub-header">📊 Key Performance Metrics</h2>', unsafe_allow_html=True)
-
-col1, col2, col3, col4, col5 = st.columns(5)
-
-with col1:
-    st.metric(
-        label="🔋 Total Energy (kWh)",
-        value=f"{filtered_df['kwh'].sum():,.0f}",
-        delta=f"{filtered_df['kwh'].sum() - df['kwh'].mean() * len(filtered_df):,.0f}"
-    )
-
-with col2:
-    st.metric(
-        label="⚡ Average Daily Output",
-        value=f"{filtered_df['kwh'].mean():.1f} kWh",
-        delta=f"{filtered_df['kwh'].mean() - df['kwh'].mean():.1f}"
-    )
-
-with col3:
-    st.metric(
-        label="🌞 Peak Performance",
-        value=f"{filtered_df['kwh'].max():.1f} kWh",
-        delta=f"{filtered_df['kwh'].max() - filtered_df['kwh'].min():.1f}"
-    )
-
-with col4:
-    st.metric(
-        label="☀️ Avg Irradiance",
-        value=f"{filtered_df['irradiance'].mean():.0f} W/m²",
-        delta=f"{filtered_df['irradiance'].mean() - df['irradiance'].mean():.0f}"
-    )
-
-with col5:
-    st.metric(
-        label="🌡️ Avg Temperature",
-        value=f"{filtered_df['ambient_temperature'].mean():.1f}°C",
-        delta=f"{filtered_df['ambient_temperature'].mean() - df['ambient_temperature'].mean():.1f}"
-    )
-
-# Main Charts Row
-st.markdown('<h2 class="sub-header">📈 Energy Production Analysis</h2>', unsafe_allow_html=True)
-
-col1, col2 = st.columns(2)
-
-with col1:
-    # Daily Energy Production Timeline
-    fig_timeline = px.line(
-        filtered_df, 
-        x='day', 
-        y='kwh',
-        color='season',
-        title='Daily Energy Production Timeline',
-        labels={'kwh': 'Energy Output (kWh)', 'day': 'Day of Year'},
-        color_discrete_map={'summer': '#FF6B35', 'winter': '#2E86AB', 'monsoon': '#A23B72'}
-    )
-    fig_timeline.update_layout(
-        title_font_size=16,
-        title_font_color='#2E86AB',
-        plot_bgcolor='rgba(0,0,0,0)',
-        paper_bgcolor='rgba(0,0,0,0)',
-        height=400
-    )
-    st.plotly_chart(fig_timeline, use_container_width=True)
-
-with col2:
-    # Seasonal Performance Comparison
-    seasonal_avg = filtered_df.groupby('season')['kwh'].mean().reset_index()
-    fig_seasonal = px.bar(
-        seasonal_avg,
-        x='season',
-        y='kwh',
-        title='Average Energy Production by Season',
-        labels={'kwh': 'Average Energy (kWh)', 'season': 'Season'},
-        color='season',
-        color_discrete_map={'summer': '#FF6B35', 'winter': '#2E86AB', 'monsoon': '#A23B72'}
-    )
-    fig_seasonal.update_layout(
-        title_font_size=16,
-        title_font_color='#2E86AB',
-        plot_bgcolor='rgba(0,0,0,0)',
-        paper_bgcolor='rgba(0,0,0,0)',
-        height=400,
-        showlegend=False
-    )
-    st.plotly_chart(fig_seasonal, use_container_width=True)
-
-# Environmental Factors Analysis
-st.markdown('<h2 class="sub-header">🌡️ Environmental Factors Impact</h2>', unsafe_allow_html=True)
-
-col1, col2 = st.columns(2)
-
-with col1:
-    # Irradiance vs Energy Output
-    fig_irr = px.scatter(
-        filtered_df,
-        x='irradiance',
-        y='kwh',
-        color='season',
-        title='Irradiance vs Energy Output',
-        labels={'irradiance': 'Irradiance (W/m²)', 'kwh': 'Energy Output (kWh)'},
-        color_discrete_map={'summer': '#FF6B35', 'winter': '#2E86AB', 'monsoon': '#A23B72'},
-        opacity=0.6
-    )
-    fig_irr.update_layout(
-        title_font_size=16,
-        title_font_color='#2E86AB',
-        plot_bgcolor='rgba(0,0,0,0)',
-        paper_bgcolor='rgba(0,0,0,0)',
-        height=400
-    )
-    st.plotly_chart(fig_irr, use_container_width=True)
-
-with col2:
-    # Temperature vs Energy Output
-    fig_temp = px.scatter(
-        filtered_df,
-        x='ambient_temperature',
-        y='kwh',
-        color='season',
-        title='Temperature vs Energy Output',
-        labels={'ambient_temperature': 'Temperature (°C)', 'kwh': 'Energy Output (kWh)'},
-        color_discrete_map={'summer': '#FF6B35', 'winter': '#2E86AB', 'monsoon': '#A23B72'},
-        opacity=0.6
-    )
-    fig_temp.update_layout(
-        title_font_size=16,
-        title_font_color='#2E86AB',
-        plot_bgcolor='rgba(0,0,0,0)',
-        paper_bgcolor='rgba(0,0,0,0)',
-        height=400
-    )
-    st.plotly_chart(fig_temp, use_container_width=True)
-
-# Monthly Analysis
-st.markdown('<h2 class="sub-header">📅 Monthly Performance Analysis</h2>', unsafe_allow_html=True)
-
-col1, col2 = st.columns(2)
-
-with col1:
-    # Monthly Average Energy Production
-    monthly_avg = filtered_df.groupby('month')['kwh'].mean().reset_index()
-    month_order = ['January', 'February', 'March', 'April', 'May', 'June',
-                   'July', 'August', 'September', 'October', 'November', 'December']
-    monthly_avg['month'] = pd.Categorical(monthly_avg['month'], categories=month_order, ordered=True)
-    monthly_avg = monthly_avg.sort_values('month')
+def generate_seasonal_data(season, feature_ranges, months_days):
+    """Generate data for a specific season"""
+    data = []
+    season_ranges = feature_ranges[season]
+    season_months = months_days[season]
     
-    fig_monthly = px.bar(
-        monthly_avg,
-        x='month',
-        y='kwh',
-        title='Average Monthly Energy Production',
-        labels={'kwh': 'Average Energy (kWh)', 'month': 'Month'},
-        color='kwh',
-        color_continuous_scale='RdYlBu_r'
+    # Select appropriate calculation function
+    if season == 'summer':
+        calc_func = calc_kwh_summer
+    elif season == 'monsoon':
+        calc_func = calc_kwh_monsoon
+    elif season == 'winter':
+        calc_func = calc_kwh_winter
+    
+    for month, days in season_months.items():
+        for _ in range(days):
+            irr = np.random.uniform(*season_ranges['irradiance'])
+            hum = np.random.uniform(*season_ranges['humidity'])
+            wind = np.random.uniform(*season_ranges['wind_speed'])
+            temp = np.random.uniform(*season_ranges['ambient_temperature'])
+            tilt = np.random.uniform(*season_ranges['tilt_angle'])
+
+            kwh = calc_func(irr, hum, wind, temp, tilt)
+
+            data.append({
+                'irradiance': round(irr, 2),
+                'humidity': round(hum, 2),
+                'wind_speed': round(wind, 2),
+                'ambient_temperature': round(temp, 2),
+                'tilt_angle': round(tilt, 2),
+                'kwh': round(kwh, 2),
+                'season': season,
+                'month': month
+            })
+    
+    return pd.DataFrame(data)
+
+@st.cache_data
+def generate_all_seasons_data():
+    """Generate data for all seasons and combine them"""
+    all_data = []
+    
+    for season in ['summer', 'monsoon', 'winter']:
+        season_df = generate_seasonal_data(season, feature_ranges, season_months_days)
+        all_data.append(season_df)
+    
+    # Combine all seasonal data
+    combined_df = pd.concat(all_data, ignore_index=True)
+    return combined_df
+
+# Main app
+def main():
+    st.markdown('<h1 class="main-header">☀️ Solar Panel Energy Analytics Dashboard</h1>', unsafe_allow_html=True)
+    
+    # Generate data
+    df = generate_all_seasons_data()
+    
+    # Sidebar controls
+    st.sidebar.markdown("## 🎛️ Dashboard Controls")
+    
+    # Season filter
+    selected_seasons = st.sidebar.multiselect(
+        "Select Seasons:",
+        options=['summer', 'monsoon', 'winter'],
+        default=['summer', 'monsoon', 'winter']
     )
-    fig_monthly.update_layout(
-        title_font_size=16,
-        title_font_color='#2E86AB',
-        plot_bgcolor='rgba(0,0,0,0)',
-        paper_bgcolor='rgba(0,0,0,0)',
-        height=400,
-        xaxis_tickangle=-45
+    
+    # Month filter
+    available_months = df[df['season'].isin(selected_seasons)]['month'].unique()
+    selected_months = st.sidebar.multiselect(
+        "Select Months:",
+        options=available_months,
+        default=available_months
     )
-    st.plotly_chart(fig_monthly, use_container_width=True)
-
-with col2:
-    # Energy Production Distribution
-    fig_dist = px.histogram(
-        filtered_df,
-        x='kwh',
-        nbins=30,
-        title='Energy Production Distribution',
-        labels={'kwh': 'Energy Output (kWh)', 'count': 'Frequency'},
-        color_discrete_sequence=['#FF6B35']
+    
+    # Filter data
+    filtered_df = df[
+        (df['season'].isin(selected_seasons)) & 
+        (df['month'].isin(selected_months))
+    ]
+    
+    # KWH range filter
+    kwh_min, kwh_max = st.sidebar.slider(
+        "KWH Range:",
+        min_value=float(df['kwh'].min()),
+        max_value=float(df['kwh'].max()),
+        value=(float(df['kwh'].min()), float(df['kwh'].max())),
+        step=0.1
     )
-    fig_dist.update_layout(
-        title_font_size=16,
-        title_font_color='#2E86AB',
-        plot_bgcolor='rgba(0,0,0,0)',
-        paper_bgcolor='rgba(0,0,0,0)',
-        height=400
-    )
-    st.plotly_chart(fig_dist, use_container_width=True)
-
-# Correlation Analysis
-st.markdown('<h2 class="sub-header">🔗 Environmental Factors Correlation</h2>', unsafe_allow_html=True)
-
-# Calculate correlation matrix
-corr_cols = ['irradiance', 'humidity', 'wind_speed', 'ambient_temperature', 'tilt_angle', 'kwh']
-corr_matrix = filtered_df[corr_cols].corr()
-
-# Create heatmap
-fig_corr = px.imshow(
-    corr_matrix,
-    text_auto=True,
-    aspect="auto",
-    title="Correlation Matrix of Environmental Factors",
-    color_continuous_scale='RdBu_r',
-    labels=dict(color="Correlation")
-)
-fig_corr.update_layout(
-    title_font_size=16,
-    title_font_color='#2E86AB',
-    height=500
-)
-st.plotly_chart(fig_corr, use_container_width=True)
-
-# Summary Statistics
-st.markdown('<h2 class="sub-header">📋 Statistical Summary</h2>', unsafe_allow_html=True)
-
-col1, col2 = st.columns(2)
-
-with col1:
-    st.markdown("### 📊 Descriptive Statistics")
+    
+    filtered_df = filtered_df[
+        (filtered_df['kwh'] >= kwh_min) & 
+        (filtered_df['kwh'] <= kwh_max)
+    ]
+    
+    # Key Metrics
+    st.markdown('<h2 class="sub-header">📊 Key Performance Metrics</h2>', unsafe_allow_html=True)
+    
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.metric(
+            label="Total Data Points",
+            value=f"{len(filtered_df):,}",
+            delta=f"{len(filtered_df) - len(df):,}"
+        )
+    
+    with col2:
+        avg_kwh = filtered_df['kwh'].mean()
+        st.metric(
+            label="Average KWH",
+            value=f"{avg_kwh:.2f}",
+            delta=f"{avg_kwh - df['kwh'].mean():.2f}"
+        )
+    
+    with col3:
+        max_kwh = filtered_df['kwh'].max()
+        st.metric(
+            label="Peak KWH",
+            value=f"{max_kwh:.2f}",
+            delta=f"{max_kwh - df['kwh'].max():.2f}"
+        )
+    
+    with col4:
+        avg_irradiance = filtered_df['irradiance'].mean()
+        st.metric(
+            label="Avg Irradiance",
+            value=f"{avg_irradiance:.1f}",
+            delta=f"{avg_irradiance - df['irradiance'].mean():.1f}"
+        )
+    
+    # Main visualizations
+    st.markdown('<h2 class="sub-header">📈 Energy Production Analysis</h2>', unsafe_allow_html=True)
+    
+    # Row 1: KWH trends
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        # KWH by Season
+        fig_season = px.box(
+            filtered_df, 
+            x='season', 
+            y='kwh',
+            color='season',
+            title='KWH Distribution by Season',
+            color_discrete_map={
+                'summer': '#FF6B35',
+                'monsoon': '#2E86AB',
+                'winter': '#A23B72'
+            }
+        )
+        fig_season.update_layout(
+            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0)',
+            font=dict(size=12)
+        )
+        st.plotly_chart(fig_season, use_container_width=True)
+    
+    with col2:
+        # KWH by Month
+        monthly_avg = filtered_df.groupby('month')['kwh'].mean().reset_index()
+        fig_month = px.bar(
+            monthly_avg,
+            x='month',
+            y='kwh',
+            title='Average KWH by Month',
+            color='kwh',
+            color_continuous_scale='Viridis'
+        )
+        fig_month.update_layout(
+            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0)',
+            font=dict(size=12)
+        )
+        st.plotly_chart(fig_month, use_container_width=True)
+    
+    # Row 2: Environmental factors
+    st.markdown('<h2 class="sub-header">🌡️ Environmental Factors Impact</h2>', unsafe_allow_html=True)
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        # Irradiance vs KWH
+        fig_irr = px.scatter(
+            filtered_df,
+            x='irradiance',
+            y='kwh',
+            color='season',
+            size='ambient_temperature',
+            hover_data=['humidity', 'wind_speed'],
+            title='Irradiance vs KWH Production',
+            color_discrete_map={
+                'summer': '#FF6B35',
+                'monsoon': '#2E86AB',
+                'winter': '#A23B72'
+            }
+        )
+        fig_irr.update_layout(
+            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0)'
+        )
+        st.plotly_chart(fig_irr, use_container_width=True)
+    
+    with col2:
+        # Temperature vs KWH
+        fig_temp = px.scatter(
+            filtered_df,
+            x='ambient_temperature',
+            y='kwh',
+            color='season',
+            size='wind_speed',
+            hover_data=['humidity', 'irradiance'],
+            title='Temperature vs KWH Production',
+            color_discrete_map={
+                'summer': '#FF6B35',
+                'monsoon': '#2E86AB',
+                'winter': '#A23B72'
+            }
+        )
+        fig_temp.update_layout(
+            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0)'
+        )
+        st.plotly_chart(fig_temp, use_container_width=True)
+    
+    # Row 3: Correlation and distribution
+    st.markdown('<h2 class="sub-header">🔍 Advanced Analytics</h2>', unsafe_allow_html=True)
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        # Correlation heatmap
+        numeric_cols = ['irradiance', 'humidity', 'wind_speed', 'ambient_temperature', 'tilt_angle', 'kwh']
+        corr_matrix = filtered_df[numeric_cols].corr()
+        
+        fig_corr = px.imshow(
+            corr_matrix,
+            title='Feature Correlation Matrix',
+            aspect='auto',
+            color_continuous_scale='RdBu_r'
+        )
+        fig_corr.update_layout(
+            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0)'
+        )
+        st.plotly_chart(fig_corr, use_container_width=True)
+    
+    with col2:
+        # KWH distribution
+        fig_dist = px.histogram(
+            filtered_df,
+            x='kwh',
+            color='season',
+            title='KWH Distribution',
+            marginal='box',
+            color_discrete_map={
+                'summer': '#FF6B35',
+                'monsoon': '#2E86AB',
+                'winter': '#A23B72'
+            }
+        )
+        fig_dist.update_layout(
+            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0)'
+        )
+        st.plotly_chart(fig_dist, use_container_width=True)
+    
+    # Data table
+    st.markdown('<h2 class="sub-header">📋 Data Explorer</h2>', unsafe_allow_html=True)
+    
+    # Summary statistics
+    st.markdown("### Summary Statistics")
+    st.dataframe(filtered_df.describe(), use_container_width=True)
+    
+    # Raw data with search and filter
+    st.markdown("### Raw Data")
     st.dataframe(
-        filtered_df.describe().round(2),
+        filtered_df.head(1000),  # Limit for performance
+        use_container_width=True,
+        height=300
+    )
+    
+    # Download button
+    csv = filtered_df.to_csv(index=False)
+    st.download_button(
+        label="📥 Download Filtered Data as CSV",
+        data=csv,
+        file_name='solar_panel_data_filtered.csv',
+        mime='text/csv',
         use_container_width=True
     )
-
-with col2:
-    st.markdown("### 🎯 Seasonal Performance Summary")
-    seasonal_summary = filtered_df.groupby('season').agg({
-        'kwh': ['mean', 'std', 'min', 'max'],
-        'irradiance': 'mean',
-        'humidity': 'mean',
-        'ambient_temperature': 'mean'
-    }).round(2)
-    st.dataframe(seasonal_summary, use_container_width=True)
-
-# Footer
-st.markdown("---")
-st.markdown(
-    """
-    <div style='text-align: center; color: #666; font-size: 0.8rem;'>
-        <p>🌟 Solar Energy Production Analysis Dashboard | Built with Streamlit & Plotly</p>
-        <p>📧 For technical support or questions, contact your system administrator</p>
+    
+    # Info box
+    st.markdown("""
+    <div class="info-box">
+        <h4>🔬 About This Dataset</h4>
+        <p>This synthetic dataset simulates solar panel energy production across different seasons with realistic environmental factors. 
+        The data includes irradiance, humidity, wind speed, temperature, and tilt angle measurements with corresponding KWH output calculations.</p>
+        <ul>
+            <li><strong>Summer:</strong> High irradiance, low humidity, optimal conditions</li>
+            <li><strong>Monsoon:</strong> Low irradiance, high humidity, challenging conditions</li>
+            <li><strong>Winter:</strong> Moderate irradiance, variable humidity, cooler temperatures</li>
+        </ul>
     </div>
-    """,
-    unsafe_allow_html=True
-)
+    """, unsafe_allow_html=True)
 
-# Info sidebar
-st.sidebar.markdown("---")
-st.sidebar.markdown("### 📖 About This Dashboard")
-st.sidebar.info(
-    """
-    This dashboard analyzes solar energy production patterns across different seasons:
-    
-    🌞 **Summer**: High irradiance, optimal performance
-    
-    ❄️ **Winter**: Moderate irradiance, steady output
-    
-    🌧️ **Monsoon**: Variable conditions, humidity impact
-    
-    Use the filters above to explore specific time periods and seasonal patterns.
-    """
-)
-
-st.sidebar.markdown("### 🔧 Technical Details")
-st.sidebar.markdown(
-    """
-    - **Dataset**: 365 days of synthetic solar data
-    - **Factors**: Irradiance, humidity, wind, temperature, tilt
-    - **Seasons**: Summer, Winter, Monsoon
-    - **Update**: Real-time filtering and analysis
-    """
-)
+if __name__ == "__main__":
+    main()
