@@ -58,6 +58,27 @@ st.markdown("""
     padding: 1rem;
     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
+
+.stMetric > div {
+    color: #000000 !important;
+}
+
+.stMetric > div > div {
+    color: #000000 !important;
+}
+
+.stMetric label {
+    color: #000000 !important;
+}
+
+.stMetric [data-testid="metric-container"] {
+    color: #000000 !important;
+}
+
+.stMetric [data-testid="metric-container"] > div {
+    color: #000000 !important;
+}
+
 </style>
 """, unsafe_allow_html=True)
 
